@@ -2,41 +2,51 @@ import { useEffect, useState } from "react";
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
+  const [sellers, setSellers] = useState([]);
   const [stats, setStats] = useState({
     totalOrders: 0,
     ordersPerStage: {},
     avgDeliveryTime: 0,
   });
 
-  // ---------------------------------------------
-  // BACKEND URL (IMPORTANT)
-  // ---------------------------------------------
   const API_BASE = "http://localhost:5000"; // change if deployed
 
   // ---------------------------------------------
-  // Fetch All Orders
+  // Fetch Orders
   // ---------------------------------------------
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem("token");
-
       const res = await fetch(`${API_BASE}/api/orders`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (!res.ok) {
         const text = await res.text();
         console.error("ADMIN FETCH ERROR:", text);
         return;
       }
-
       const data = await res.json();
       setOrders(data);
       calculateStats(data);
     } catch (err) {
       console.error("FETCH ORDERS FAILED", err);
+    }
+  };
+
+  // ---------------------------------------------
+  // Fetch Sellers
+  // ---------------------------------------------
+  const fetchSellers = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/users/sellers`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch sellers");
+      const data = await res.json();
+      setSellers(data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -52,24 +62,44 @@ export default function AdminDashboard() {
       ordersPerStage[o.stage] = (ordersPerStage[o.stage] || 0) + 1;
 
       if (o.stage === "Delivered" && o.timestamps) {
-        totalTime +=
-          new Date(o.timestamps.Delivered) -
-          new Date(o.timestamps["Order Placed"]);
+        totalTime += new Date(o.timestamps.Delivered) - new Date(o.timestamps["Order Placed"]);
       }
     });
 
-    const avgDeliveryTime =
-      totalOrders > 0 ? (totalTime / totalOrders / 3600000).toFixed(2) : 0;
+    const avgDeliveryTime = totalOrders > 0 ? (totalTime / totalOrders / 3600000).toFixed(2) : 0;
 
     setStats({ totalOrders, ordersPerStage, avgDeliveryTime });
   };
 
   // ---------------------------------------------
-  // useEffect (Correct + Clean)
+  // useEffect
   // ---------------------------------------------
   useEffect(() => {
     fetchOrders();
+    fetchSellers();
   }, []);
+
+  // ---------------------------------------------
+  // Assign Seller
+  // ---------------------------------------------
+  const assignSeller = async (orderId, sellerId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/orders/${orderId}/assign-seller`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sellerId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Failed to assign seller");
+      }
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
+  };
 
   // ---------------------------------------------
   // Associate Buyer
@@ -77,14 +107,10 @@ export default function AdminDashboard() {
   const associateBuyer = async (orderId) => {
     try {
       const token = localStorage.getItem("token");
-
       await fetch(`${API_BASE}/api/orders/${orderId}/associate`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       fetchOrders();
     } catch (err) {
       console.error("ASSOCIATE BUYER FAILED", err);
@@ -92,18 +118,14 @@ export default function AdminDashboard() {
   };
 
   // ---------------------------------------------
-  // View Order Details
+  // View Details
   // ---------------------------------------------
   const viewDetails = async (orderId) => {
     try {
       const token = localStorage.getItem("token");
-
       const res = await fetch(`${API_BASE}/api/orders/${orderId}/details`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json();
       alert(JSON.stringify(data, null, 2));
     } catch (err) {
@@ -117,14 +139,10 @@ export default function AdminDashboard() {
   const deleteOrder = async (orderId) => {
     try {
       const token = localStorage.getItem("token");
-
       await fetch(`${API_BASE}/api/orders/${orderId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       fetchOrders();
     } catch (err) {
       console.error("DELETE FAILED", err);
@@ -136,24 +154,17 @@ export default function AdminDashboard() {
   // ---------------------------------------------
   return (
     <div className="p-6 space-y-6 text-white">
-
       <h1 className="text-3xl font-bold mb-4">Admin Dashboard</h1>
 
       {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 bg-gray-800 rounded-md">
-          Total Orders: {stats.totalOrders}
-        </div>
-
+        <div className="p-4 bg-gray-800 rounded-md">Total Orders: {stats.totalOrders}</div>
         {Object.entries(stats.ordersPerStage).map(([stage, count]) => (
           <div key={stage} className="p-4 bg-gray-800 rounded-md">
             {stage}: {count}
           </div>
         ))}
-
-        <div className="p-4 bg-gray-800 rounded-md">
-          Avg Delivery Time: {stats.avgDeliveryTime} hrs
-        </div>
+        <div className="p-4 bg-gray-800 rounded-md">Avg Delivery Time: {stats.avgDeliveryTime} hrs</div>
       </div>
 
       {/* ORDERS TABLE */}
@@ -163,14 +174,14 @@ export default function AdminDashboard() {
             <th className="p-3">Order ID</th>
             <th className="p-3">Stage</th>
             <th className="p-3">Buyer</th>
+            <th className="p-3">Seller</th>
             <th className="p-3">Actions</th>
           </tr>
         </thead>
-
         <tbody>
           {orders.length === 0 && (
             <tr>
-              <td colSpan="4" className="text-center p-4 text-gray-400">
+              <td colSpan="5" className="text-center p-4 text-gray-400">
                 No Orders Found
               </td>
             </tr>
@@ -181,7 +192,26 @@ export default function AdminDashboard() {
               <td className="p-3">{order._id}</td>
               <td className="p-3">{order.stage}</td>
               <td className="p-3">{order.buyer?.name || "Not Assigned"}</td>
-
+              <td className="p-3">
+                {!order.seller ? (
+                  <select
+                    onChange={(e) => assignSeller(order._id, e.target.value)}
+                    className="px-2 py-1 rounded bg-gray-700 text-white"
+                    defaultValue=""
+                  >
+                    <option value="" disabled>
+                      Assign Seller
+                    </option>
+                    {sellers.map((s) => (
+                      <option key={s._id} value={s._id}>
+                        {s.name} ({s.email})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  `${order.seller.name} (${order.seller.email})`
+                )}
+              </td>
               <td className="p-3 space-x-2">
                 <button
                   className="px-3 py-1 bg-blue-500 text-white rounded"
@@ -208,7 +238,6 @@ export default function AdminDashboard() {
           ))}
         </tbody>
       </table>
-
     </div>
   );
 }

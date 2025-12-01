@@ -8,25 +8,36 @@ import {
   viewOrderDetails,
   deleteOrder
 } from "../controllers/orderController.js";
+import {
+  getActiveOrder,
+  getOrderHistory,
+  cancelOrder,
+  moveMyOrderNextStage
+} from "../controllers/buyerController.js";
 
 const router = express.Router();
 
 // --------------------
 // Admin Routes
 // --------------------
-router.get("/", protect, authorize("admin"), getAllOrders); // get all orders
-router.post("/:id/associate", protect, authorize("admin"), associateBuyer); // associate buyer
-router.get("/:id/details", protect, authorize("admin"), viewOrderDetails); // view order details
-router.delete("/:id", protect, authorize("admin", "seller"), deleteOrder); // soft delete order
+router.get("/", protect, authorize("admin"), getAllOrders); // Get all orders
+router.post("/:id/associate", protect, authorize("admin"), associateBuyer); // Associate buyer to order
+router.get("/:id/details", protect, authorize("admin"), viewOrderDetails); // View order details
+router.delete("/:id", protect, authorize("admin", "seller"), deleteOrder); // Soft delete order
 
 // --------------------
 // Buyer Routes
 // --------------------
-router.post("/", protect, authorize("buyer"), createOrder); // create order
+router.post("/", protect, authorize("buyer"), createOrder); // Create a new order
+//router.get("/", protect, authorize("buyer"), getAllOrders);
+router.get("/active", protect, authorize("buyer"), getActiveOrder); // Get buyer's active order
+router.get("/history", protect, authorize("buyer"), getOrderHistory); // Get buyer's order history
+router.post("/:id/next", protect, authorize("buyer"), moveMyOrderNextStage); // Move buyer's order to next stage
+router.delete("/:id/cancel", protect, authorize("buyer"), cancelOrder); // Cancel active order
 
 // --------------------
 // Seller Routes
 // --------------------
-router.post("/:id/next", protect, authorize("seller"), moveNextStage); // move to next stage
+//router.post("/:id/next", protect, authorize("seller"), moveNextStage); // Move order to next stage
 
 export default router;
